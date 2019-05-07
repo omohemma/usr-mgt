@@ -4,6 +4,8 @@ namespace App\Controller;
 
 use App\Entity\User;
 use Doctrine\Common\Persistence\ObjectManager;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Swagger\Annotations as SWG;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
@@ -14,20 +16,50 @@ class UserController extends AbstractController
     /**
      * @Route("/user", name="user")
      */
-    public function index()
-    {
-        return $this->json([
-            'message' => 'Welcome to your new controller!',
-            'path' => 'src/Controller/UserController.php',
-        ]);
-    }
+    // public function index()
+    // {
+    //     return $this->json([
+    //         'message' => 'Welcome to your new controller!',
+    //         'path' => 'src/Controller/UserController.php',
+    //     ]);
+    // }
 
     /**
-     * @Route("/register", name="api_register")
-     * Method({"POST"})
+     * @Route("/register", name="api_register",methods={"POST"}),
+     *
+     * @SWG\Parameter(
+     *     name="email",
+     *     in="formData",
+     *     type="string",
+     *     description="The field of user email"
+     * ),
+     *  @SWG\Parameter(
+     *     name="password",
+     *     in="formData",
+     *     type="string",
+     *     description="The field of user's password"
+     * ),
+     *  @SWG\Parameter(
+     *     name="password_confirmation",
+     *     in="formData",
+     *     type="string",
+     *     description="The field to confirm user's password"
+     * ),
+     * @SWG\Parameter(
+     *     name="roles",
+     *     in="formData",
+     *     type="string",
+     *     description="The field user's roles"
+     * ),
+     * @SWG\Response(
+     *     response=200,
+     *     description="Success",
+     * )
      */
+
     public function register(ObjectManager $om, UserPasswordEncoderInterface $passwordEncoder, Request $request)
     {
+
         $user = new User();
         $email = $request->request->get("email");
         $password = $request->request->get("password");
@@ -43,27 +75,33 @@ class UserController extends AbstractController
         if (!$errors) {
             $encodedPassword = $passwordEncoder->encodePassword($user, $password);
             $user->setEmail($email);
-            $user->setPassword($encodedPassword);
+
             $roles = explode(',', $roles);
             foreach ($roles as &$role) {
-                $role = strtoupper('Role_' . $role);
+                $role = strtoupper('role_' . $role);
             }
 
             $user->setRoles($roles);
-
+            $user->setPassword($encodedPassword);
             try
             {
                 $om->persist($user);
                 $om->flush();
+
+                // TODO: Do redirection...
+
                 return $this->json([
-                    'user' => $user
+                    'error' => null,
+                    'success' => true,
                 ]);
+
             } catch (UniqueConstraintViolationException $e) {
                 $errors[] = "The email provided already has an account!";
             } catch (\Exception $e) {
                 $errors[] = "Unable to save new user at this time.";
             }
         }
+
         return $this->json([
             'errors' => $errors,
         ], 400);
